@@ -2,10 +2,10 @@
 
 #include <boost/shared_ptr.hpp>
 
-#include "batch_runners/ASAPPRunner.h"
+// #include "batch_runners/ASAPPRunner.h"
 #include "batch_runners/Centralized.h"
 #include "batch_runners/DDFSAM.h"
-#include "batch_runners/DGSRunner.h"
+// #include "batch_runners/DGSRunner.h"
 #include "batch_runners/Independent.h"
 #include "batch_runners/MBADMMRunner.h"
 #include "batch_runners/MESARunner.h"
@@ -55,20 +55,20 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
     return boost::make_shared<batch_runners::DDFSAM<POSE_TYPE>>(dataset, output_dir);
   }
   /*********************************************************************************************************************/
-  else if (method_name == "asapp") {
-    typename batch_runners::ASAPPRunner<POSE_TYPE>::Params params;
-    params.max_number_dgs_rotation_iters = 50;
-    params.max_number_dgs_pose_iters = 50;
-    params.rgd_step_size = 1e-3;
-    params.number_rgd_iters = 100;
-    params.optimization_method = DPGO::ROptParameters::ROptMethod::RGD;
-    return boost::make_shared<batch_runners::ASAPPRunner<POSE_TYPE>>("asapp", dataset, output_dir, params);
-  }
+  // else if (method_name == "asapp") {
+  //   typename batch_runners::ASAPPRunner<POSE_TYPE>::Params params;
+  //   params.max_number_dgs_rotation_iters = 50;
+  //   params.max_number_dgs_pose_iters = 50;
+  //   params.rgd_step_size = 1e-3;
+  //   params.number_rgd_iters = 100;
+  //   params.optimization_method = DPGO::ROptParameters::ROptMethod::RGD;
+  //   return boost::make_shared<batch_runners::ASAPPRunner<POSE_TYPE>>("asapp", dataset, output_dir, params);
+  // }
   /*********************************************************************************************************************/
-  else if (method_name == "dgs") {
-    // WARNING ONLY WORKS WITH POSE 3
-    return boost::make_shared<batch_runners::DGSRunner<POSE_TYPE>>(dataset, output_dir);
-  }
+  // else if (method_name == "dgs") {
+  //   // WARNING ONLY WORKS WITH POSE 3
+  //   return boost::make_shared<batch_runners::DGSRunner<POSE_TYPE>>(dataset, output_dir);
+  // }
   /*********************************************************************************************************************/
   else if (method_name == "mbadmm") {
     return boost::make_shared<batch_runners::MBADMMRunner<POSE_TYPE>>("mbadmm", dataset, output_dir, true, false);

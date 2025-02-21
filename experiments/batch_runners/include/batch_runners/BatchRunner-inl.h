@@ -40,6 +40,7 @@ void BatchRunner<POSE_TYPE>::optimize() {
 
   while (!converged) {
     std::cout << "Iteration: " << iter_count << "---------------------------------------" << std::endl;
+
     // Run the iteration step
     BatchIterResults iter_results = iterate();
 

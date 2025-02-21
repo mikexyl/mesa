@@ -2,6 +2,7 @@
 #include <ADMM.h>
 #include <ADMMUtils.h>
 #include <gtsam/geometry/Pose3.h>
+#include <gtsam/geometry/Pose2.h>
 #include <gtsam/slam/dataset.h>
 #include <jrl/DatasetBuilder.h>
 #include <jrl/IOMeasurements.h>
@@ -45,18 +46,75 @@ po::variables_map handle_args(int argc, const char* argv[]) {
   return var_map;
 }
 
+std::map<int, int> sequential(const gtsam::NonlinearFactorGraph& graph, int num_partitions) {
+  std::map<int, int> variable_partition;
+  
+  // Safety checks
+  if (num_partitions <= 0) {
+    // Could throw an exception or just return empty
+    return variable_partition;
+  }
+
+  // Number of variables (keys)
+  int num_variables = graph.keys().size();
+  if (num_partitions == 1) {
+    // Everything goes into partition 0
+    for (int i = 0; i < num_variables; i++) {
+      variable_partition[i] = 0;
+    }
+    return variable_partition;
+  }
+
+  // "Exact" partitioning logic
+  int variables_per_partition = num_variables / num_partitions;  // integer division
+  int remainder = num_variables % num_partitions;
+
+  int partition_index = 0;
+  int count_in_partition = 0;
+
+  // Assign the variables to the partitions
+  for (int i = 0; i < num_variables; i++) {
+    variable_partition[i] = partition_index;
+    count_in_partition++;
+
+    // If this partition is supposed to get an extra variable (due to remainder),
+    // give it 1 more than variables_per_partition
+    int desired_size_for_this_partition =
+        variables_per_partition + ((partition_index < remainder) ? 1 : 0);
+
+    if (count_in_partition == desired_size_for_this_partition) {
+      // Move to the next partition
+      partition_index++;
+      count_in_partition = 0;
+    }
+
+    // Safety clamp just in case
+    if (partition_index >= num_partitions) {
+      partition_index = num_partitions - 1;
+    }
+  }
+  std::cout << "Sequential Partitioning Done!" << std::endl;
+  // print robot i has node id_start to id_end
+  for (int i = 0; i < num_partitions; i++) {
+    std::cout << "Robot " << i << " has node id " << i * variables_per_partition << " to " << (i + 1) * variables_per_partition - 1 << std::endl;
+  }
+  return variable_partition;
+}
+
 int main(int argc, const char* argv[]) {
   auto args = handle_args(argc, argv);
   int num_partitions = args["num_partitions"].as<int>();
 
   // Read the g2o File
-  gtsam::GraphAndValues readGraph = gtsam::readG2o(args["input_g2o"].as<std::string>(), true);
+  bool is3D = true;
+  gtsam::GraphAndValues readGraph = gtsam::readG2o(args["input_g2o"].as<std::string>(), is3D);
   gtsam::NonlinearFactorGraph graph = *(readGraph.first);
   gtsam::Values initial = *(readGraph.second);
 
   // Partition the given graph into subgraphs using metis
   // Returns map from variable key -> subgraph index
-  std::map<int, int> variable_partition = metis(graph, num_partitions);
+  // std::map<int, int> variable_partition = metis(graph, num_partitions);
+  std::map<int, int> variable_partition = sequential(graph, num_partitions);
 
   // Get a sorted list of the variables held by each robot
   std::map<char, std::vector<int>> robot_variables;
@@ -85,12 +143,20 @@ int main(int argc, const char* argv[]) {
     gtsam::Key new_key = variable_remapping[kvp.key];
     rekeyed_initial.insert(new_key, kvp.value);
   }
-
+  std::cout << "Remapping Done!" << std::endl;
   // Add a prior since g2o doesn't include one 
-  rekeyed_graph.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(
-      variable_remapping[0], rekeyed_initial.at<gtsam::Pose3>(variable_remapping[0]),
-      gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 0.5, 0.5, 0.5, 1, 1, 1).finished()));
 
+  // check pose_type
+  std::cout << "is3D: " << is3D << std::endl;
+  if (is3D) {
+    rekeyed_graph.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(
+        variable_remapping[0], rekeyed_initial.at<gtsam::Pose3>(variable_remapping[0]),
+        gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 0.5, 0.5, 0.5, 1, 1, 1).finished()));
+  } else {
+    rekeyed_graph.emplace_shared<gtsam::PriorFactor<gtsam::Pose2>>(
+        variable_remapping[0], rekeyed_initial.at<gtsam::Pose2>(variable_remapping[0]),
+        gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(3) << 0.5, 0.5, 1).finished()));
+  }
 
   // Solve the G2O file using GTSAM to get pseudo GT
   gtsam::LevenbergMarquardtParams params;
