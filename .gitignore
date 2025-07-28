@@ -1,3 +1,10 @@
 build/
 .vscode/
 __pycache__/
+.cache
+results/*
+*.txt
+*.dot
+*.pdf
+*.zip
+

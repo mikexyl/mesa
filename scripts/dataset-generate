@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+
+import os
+
+# cd /workspaces/src/mesa && ./build/experiments/g2o-2-mr-jrl -i /datasets/kitti_00_3d.g2o -n kitti -o /datasets/G2O/jrl/kitti_00_3d.json -p 5
+# cd /workspaces/src/mesa
+# ./build/experiments/g2o-2-mr-jrl -i /datasets/G2O/sphere2500.g2o -n input_sphere -o /datasets/G2O/jrl -p 1
+
+g2o_file_path = "/datasets/G2O/sphere2500.g2o"
+name = "sphere2500"
+output_path = "/datasets/G2O/jrl/"
+output_name = "sphere2500.jrl"
+cd /workspaces/src/mesa && ./build/experiments/g2o-2-mr-jrl -i ${g2o_file_path} -n kitti -o ${output_path}${output_name} -p 5
+
+cd /workspaces/src/mesa && ./build/experiments/g2o-2-mr-jrl -i /datasets/G2O/sphere2500.g2o -n sphere2500 -o /datasets/G2O/sphere2500.json -p 5
+
+cd /workspaces/src/ && ./mesa/build/experiments/run-dist-batch -i /datasets/G2O/jrl/kitti_00_3d.jrl -m centralized -o . --is3d
+cd /workspaces/src/ && ./mesa/build/experiments/run-dist-batch -i /datasets/G2O/jrl/kitti_00_3d.jrl -m geodesic-mesa -o . --is3d
+
+cd /workspaces/src/mesa && ./scripts/plot-results -d /datasets/G2O/jrl/kitti_00_3d.jrl -r kitti_centralized_*/final_results.jrr.cbor --is3d
+cd /workspaces/src/mesa && ./scripts/compare-convergence -d /datasets/G2O/jrl/kitti_00_3d.jrl  -c kitti_centralized_*/ -m example_dataset_0000_geodesic-mesa_<DATE>/ -rs 1 -ts 1
