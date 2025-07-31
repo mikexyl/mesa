@@ -104,3 +104,48 @@ def plot_traj_3d(
         if include_shared_vars and (len(oth) > 0):
             ax.plot(oth.T[0], oth.T[1], oth.T[2], "o", color=colors[idx])
         #ax.view_init(elev=90, azim=-90)
+
+def save_results_to_txt(dataset, results, filename, linear=False):
+    """
+    Save each robot's trajectory from 'results' into a text file.
+    
+    Format per line:
+    robot_id    key    w    x    y    z    tx    ty    tz
+    
+    - robot_id : single character identifying the robot
+    - key      : integer key used in the GTSAM Symbol
+    - w, x, y, z : quaternion components of the orientation
+    - tx, ty, tz : translation (position) values
+    """
+    with open(filename, 'w') as f:
+        # Optionally, write a header line:
+        f.write("# robot key w x y z tx ty tz\n")
+
+        # Loop through each robot in the dataset
+        for robot in dataset.robots():
+            # Extract the Values object for that robot
+            svals = results.robot_solutions[robot].values
+
+            # Loop through each key in the Values
+            for k in svals.keys():
+                symbol = gtsam.Symbol(k)
+
+                # Only process if this key is indeed for this robot
+                if chr(symbol.chr()) == robot:
+                    if linear:
+                        # If the solution is in Point3 format
+                        point = svals.atPoint3(k)  # 3D point
+                        # For a linear case, there's no orientation to extract,
+                        # so you might store 'NaN' or skip orientation
+                        f.write(f"{robot} {symbol.index()} NaN NaN NaN NaN {point[0]} {point[1]} {point[2]}\n")
+                    else:
+                        # Otherwise, the solution is assumed to be a Pose3
+                        pose = svals.atPose3(k)
+                        # Extract quaternion (as w, x, y, z)
+                        rotation_quat = pose.rotation().toQuaternion()
+                        w, x, y, z = rotation_quat.w(), rotation_quat.x(), rotation_quat.y(), rotation_quat.z()
+                        # Extract translation
+                        tx, ty, tz = pose.translation()
+                        
+                        # Write a line in the desired format
+                        f.write(f"{robot} {symbol.index()} {w:.9f} {x:.9f} {y:.9f} {z:.9f} {tx:.9f} {ty:.9f} {tz:.9f}\n")

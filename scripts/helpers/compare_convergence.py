@@ -48,17 +48,27 @@ def compare_convergence(
         name = comms_and_metrics[0][1].method_name
         comms = []
         residual = []
+        final_ape= []
+        final_are= []
         for cc, ms in comms_and_metrics:
             if ms.total_ate[0] < np.inf and ms.total_ate[0] != np.NaN:
                 # print(ms.mean_residual)
                 comms.append(cc)
                 residual.append(ms.mean_residual)
+                final_ape.append(ms.total_ate[0])
+                final_are.append(ms.total_ate[1])
         axes.plot(
             comms,
             residual,
             label=METHOD_STYLE_SHEET[name]["name"],
             color=METHOD_STYLE_SHEET[name]["color"]
         )
+
+        # save residual and final ATE to a file
+        with open(f"{mthd_result_dir}/residual_and_ate.txt", "w") as f:
+            for c, r, p, rot in zip(comms, residual, final_ape, final_are):
+                f.write(f"{c} {r} {p} {rot}\n")
+    
 
     axes.set_ylabel("Mean Residual")
     axes.set_xlabel("# Communications")

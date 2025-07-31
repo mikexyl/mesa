@@ -4,3 +4,10 @@ __pycache__/
 # pixi environments
 .pixi
 *.egg-info
+.cache
+results/*
+*.txt
+*.dot
+*.pdf
+*.zip
+

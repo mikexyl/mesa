@@ -35,11 +35,14 @@ void BatchRunner<POSE_TYPE>::optimize() {
   cumulative_communications.push_back(total_communications);
 
   // Figure out the Max Iterations and Save Rate
-  size_t save_rate = iterationsPerFullComms();
-  size_t max_iters = 500 * dataset_.robots().size() * save_rate;
-
+  // size_t save_rate = iterationsPerFullComms();
+  // size_t max_iters = 500 * dataset_.robots().size() * save_rate;
+  // 3000
+  size_t save_rate = 4000;
+  size_t max_iters = 3000;
   while (!converged) {
     std::cout << "Iteration: " << iter_count << "---------------------------------------" << std::endl;
+
     // Run the iteration step
     BatchIterResults iter_results = iterate();
 
