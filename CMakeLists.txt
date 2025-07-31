@@ -7,6 +7,7 @@ message(STATUS "================  BUILDING MESA  ======================")
 # Dependencies
 find_package(GTSAM REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
+message(STATUS "jrl DIRECTORY: ${jrl_DIR}")
 find_package(jrl REQUIRED)
 
 # Build Thirdparty code

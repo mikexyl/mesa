@@ -1,0 +1,102 @@
+{
+  "name": "MESA Development Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  
+  // Features to install
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "upgradePackages": true,
+      "username": "vscode",
+      "userUid": "automatic",
+      "userGid": "automatic"
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "ppa": true,
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.10",
+      "installTools": true,
+      "optimize": true
+    }
+  },
+
+  // Custom initialization
+  "postCreateCommand": "pixi --version && echo 'MESA development environment ready!'",
+
+  // Configure VS Code settings
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "python.defaultInterpreterPath": "/opt/miniconda/bin/python",
+        "cmake.configureOnOpen": false,
+        "files.associations": {
+          "*.toml": "toml"
+        }
+      },
+      "extensions": [
+        "ms-vscode.cpptools-extension-pack",
+        "ms-vscode.cmake-tools",
+        "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.black-formatter",
+        "tamasfe.even-better-toml",
+        "ms-vscode.vscode-json",
+        "GitHub.copilot",
+        "redhat.vscode-yaml",
+        "ms-python.debugpy"
+      ]
+    }
+  },
+
+  // Forward ports for visualization
+  "forwardPorts": [8080, 8888, 5000, 3000],
+  "portsAttributes": {
+    "8080": {
+      "label": "Web Server",
+      "onAutoForward": "notify"
+    },
+    "8888": {
+      "label": "Jupyter",
+      "onAutoForward": "notify"
+    },
+    "5000": {
+      "label": "Flask/Debug Server",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Development Server",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // Container settings
+  "mounts": [
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached"
+  ],
+  
+  "containerEnv": {
+    "DISPLAY": "${localEnv:DISPLAY}",
+    "LIBGL_ALWAYS_INDIRECT": "1"
+  },
+
+  // Enable GPU support if available
+  "runArgs": [
+    "--gpus=all",
+    "--ipc=host",
+    "--network=host"
+  ],
+
+  "remoteUser": "vscode",
+  
+  // Lifecycle scripts
+  "initializeCommand": "echo 'Initializing MESA dev container...'",
+  "postStartCommand": "echo 'MESA dev container is ready!'"
+}
