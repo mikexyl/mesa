@@ -51,7 +51,8 @@
         "ms-vscode.vscode-json",
         "GitHub.copilot",
         "redhat.vscode-yaml",
-        "ms-python.debugpy"
+        "ms-python.debugpy",
+        "llvm-vs-code-extensions.vscode-clangd"
       ]
     }
   },

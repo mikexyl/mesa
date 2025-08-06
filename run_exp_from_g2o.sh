@@ -1,16 +1,19 @@
 #!/bin/bash
 
-# g2o_file_path="/datasets/G2O/sphere2500.g2o"
-# g2o_file_path="/datasets/G2O/smallGrid3D.g2o" # x
-# g2o_file_path="/datasets/G2O/parking-garage.g2o"
-# g2o_file_path="/datasets/G2O/torus3D.g2o" # x
-# g2o_file_path="/datasets/G2O/kitti_00_3d.g2o" 
-# # g2o_file_path="/datasets/G2O/input_INTEL_g2o_3d.g2o" #TODO: debug x
-# g2o_file_path="/datasets/G2O/CSAIL_3d.g2o"
+# g2o_file_path="/workspaces/mesa/data/sphere2500.g2o"
+# g2o_file_path="/workspaces/mesa/data/smallGrid3D.g2o"
+# g2o_file_path="/workspaces/mesa/data/parking-garage.g2o"
+# g2o_file_path="/workspaces/mesa/data/kitti_00_3d.g2o"  # y
+# g2o_file_path="/workspaces/mesa/data/CSAIL_3d.g2o" 
+# g2o_file_path="/workspaces/mesa/data/input_MITb_g2o_3d.g2o" # x
+# g2o_file_path="/workspaces/mesa/data/input_M3500_g2o_3d.g2o" # x
+# g2o_file_path="/workspaces/mesa/data/input_INTEL_g2o_3d.g2o" # x
+# g2o_file_path="/datasets/G2O/input_INTEL_g2o_3d.g2o" 
+g2o_file_path="/workspaces/mesa/data/CSAIL_3d.g2o" # y
 # g2o_file_path="/datasets/G2O/input_M3500_g2o_3d.g2o"
-g2o_file_path="/datasets/G2O/torus3D.g2o.init"
+# g2o_file_path="/workspaces/mesa/data/torus3D.g2o"
 
-output_path="/datasets/G2O/jrl/"
+output_path="/workspaces/mesa/data/results/jrl/"
 
 n=5
 # g2o_file_path="/datasets/G2O/kitti_00.g2o"
@@ -49,7 +52,7 @@ mkdir -p "$output_path"
 # RUN PREPROCESSING
 # ===========================
 
-cd /workspaces/src/mesa || { echo "❌ Failed to change directory!"; exit 1; }
+cd /workspaces/mesa || { echo "❌ Failed to change directory!"; exit 1; }
 
 echo "🚀 Running g2o-2-mr-jrl conversion..."
 ./build/experiments/g2o-2-mr-jrl -i "$g2o_file_path" -n "$name" -o "$output_file" -p "$n" > output.txt
@@ -65,18 +68,18 @@ echo "✅ Conversion successful!"
 # RUN DISTRIBUTED BATCHES
 # ===========================
 
-cd /workspaces/src/ || { echo "❌ Failed to change directory!"; exit 1; }
+cd /workspaces/ || { echo "❌ Failed to change directory!"; exit 1; }
 
-methods=("centralized" "geodesic-mesa")
+methods=("centralized" "ddfsam")
 # methods=("centralized")
 # methods=("geodesic-mesa")
-results_dir="/workspaces/src/mesa/results"
+results_dir="/workspaces/mesa/data/results/seq"
 
 mkdir -p "$results_dir"
 
 for method in "${methods[@]}"; do
     echo "🚀 Running distributed batch: $method"
-    cmd="./mesa/build/experiments/run-dist-batch -i \"$output_file\" -m \"$method\" -o \"$results_dir\" --is3d > /workspaces/src/mesa/graph.txt" 
+    cmd="./mesa/build/experiments/run-dist-batch -i \"$output_file\" -m \"$method\" -o \"$results_dir\" --is3d > /workspaces/mesa/graph.txt" 
     echo "📝 Running: $cmd"
     eval $cmd
 
@@ -93,7 +96,7 @@ done
 # PLOTTING RESULTS
 # ===========================
 
-cd /workspaces/src/mesa || { echo "❌ Failed to change directory!"; exit 1; }
+cd /workspaces/mesa || { echo "❌ Failed to change directory!"; exit 1; }
 
 for method in "${methods[@]}"; do
     results_pattern="${results_dir}/${name}_${method}"_*/final_results.jrr.cbor

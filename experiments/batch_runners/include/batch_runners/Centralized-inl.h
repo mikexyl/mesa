@@ -1,5 +1,6 @@
 #pragma once
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <gtsam/slam/InitializePose3.h>
 #include <jrl/Types.h>
 
 #include "batch_runners/Centralized.h"
@@ -33,7 +34,10 @@ BatchIterResults Centralized<POSE_TYPE>::init() {
 template <class POSE_TYPE>
 BatchIterResults Centralized<POSE_TYPE>::iterate() {
   // Solve
-  gtsam::LevenbergMarquardtOptimizer optimizer(joint_factor_graph_, joint_values_);
+  gtsam::InitializePose3 initializer;
+  auto values = initializer.initialize(joint_factor_graph_, joint_values_);
+
+  gtsam::LevenbergMarquardtOptimizer optimizer(joint_factor_graph_, values);
   auto joint_solution = optimizer.optimize();
 
   // Aggregate the results

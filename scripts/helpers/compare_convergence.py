@@ -51,7 +51,7 @@ def compare_convergence(
         final_ape= []
         final_are= []
         for cc, ms in comms_and_metrics:
-            if ms.total_ate[0] < np.inf and ms.total_ate[0] != np.NaN:
+            if ms.total_ate[0] < np.inf and ms.total_ate[0] != np.nan:
                 # print(ms.mean_residual)
                 comms.append(cc)
                 residual.append(ms.mean_residual)

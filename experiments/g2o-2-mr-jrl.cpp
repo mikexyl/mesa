@@ -223,7 +223,7 @@ int main(int argc, const char* argv[]) {
     // Add the robot info to the dataset
     jrl::TypedValues typed_initial = jrl::TypedValues(robot_initial, robot_value_types);
     jrl::TypedValues typed_pseudo_gt = jrl::TypedValues(robot_pseudo_gt, robot_value_types);
-    builder.addEntry(robots[i], 0, robot_graph, robot_factor_types, {}, typed_initial, typed_pseudo_gt);
+    builder.addEntry(robots[i], 0, robot_graph, robot_factor_types, typed_initial, typed_pseudo_gt);
 
     robot_graph.saveGraph(std::string(1, rid) + ".dot");
   }

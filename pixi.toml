@@ -7,7 +7,7 @@ version = "0.1.0"
 
 [tasks]
 build-jrl = { cwd = "deps/jrl", cmd = "mkdir -p build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DJRL_BUILD_PYTHON=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX && make -j10 && make install && make jrl-python-install" }
-build = { cmd = "mkdir -p build && cd build && cmake .. -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && ninja" }
+build = { cmd = "mkdir -p build && cd build && cmake .. -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release && ninja" }
 build-gtsam = { cmd = "cd deps/gtsam && mkdir -p build && cd build && cmake .. -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_USE_SYSTEM_METIS=ON -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_PYTHON=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX && make -j10 && make install && make python-install" }
 # Visualization and development tasks
 jupyter = { cmd = "jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root" }

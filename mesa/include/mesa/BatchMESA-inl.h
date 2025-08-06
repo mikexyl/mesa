@@ -4,6 +4,7 @@
 #include <gtsam/nonlinear/GaussNewtonOptimizer.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
+#include <gtsam/slam/InitializePose3.h>
 
 #include <boost/math/distributions.hpp>
 #include <iterator>
@@ -42,9 +43,9 @@ gtsam::Point3 baseInterpolateSPLIT(const gtsam::Point3& start_pose, const gtsam:
 
 template <class POSE_TYPE, class Z_TYPE, class BIASED_PRIOR_TYPE, class INV_BIASED_PRIOR_TYPE>
 BatchMESA<POSE_TYPE, Z_TYPE, BIASED_PRIOR_TYPE, INV_BIASED_PRIOR_TYPE>::BatchMESA(std::vector<char> robots,
-                                                                                        RobotGraphs robot_graphs,
-                                                                                        RobotValues robot_estimates,
-                                                                                        MESAParams params)
+                                                                                  RobotGraphs robot_graphs,
+                                                                                  RobotValues robot_estimates,
+                                                                                  MESAParams params)
     : robots_(robots), robot_base_graphs_(robot_graphs), robot_estimates_(robot_estimates), params_(params) {}
 
 /*********************************************************************************************************************/
@@ -152,8 +153,7 @@ void BatchMESA<POSE_TYPE, Z_TYPE, BIASED_PRIOR_TYPE, INV_BIASED_PRIOR_TYPE>::upd
 
 /*********************************************************************************************************************/
 template <class POSE_TYPE, class Z_TYPE, class BIASED_PRIOR_TYPE, class INV_BIASED_PRIOR_TYPE>
-void BatchMESA<POSE_TYPE, Z_TYPE, BIASED_PRIOR_TYPE, INV_BIASED_PRIOR_TYPE>::updateRobotEstimateAndMarginals(
-    char rid) {
+void BatchMESA<POSE_TYPE, Z_TYPE, BIASED_PRIOR_TYPE, INV_BIASED_PRIOR_TYPE>::updateRobotEstimateAndMarginals(char rid) {
   gtsam::NonlinearFactorGraph biased_factor_graph;
   biased_factor_graph.push_back(robot_base_graphs_[rid]);
 
