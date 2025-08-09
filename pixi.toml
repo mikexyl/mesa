@@ -12,8 +12,20 @@ build-gtsam = { cmd = "cd deps/gtsam && mkdir -p build && cd build && cmake .. -
 # Visualization and development tasks
 jupyter = { cmd = "jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root" }
 notebook = { cmd = "jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root" }
-plot-results = { cmd = "python scripts/plot-results" }
-plot-jrl = { cmd = "python scripts/plot-jrl" }
+
+[tasks.plot-results]
+cmd = "python scripts/plot-results -d data/results/jrl/{{ d }}.jrl -r data/results/seq/{{ r }} --is3d"
+args = [
+  { "arg" = "d", "default" = "input_MITb_g2o_3d" },
+  { "arg" = "r", "default" = "input_MITb_g2o_3d_dgs_2025-08-06_14-58-24/final_results.jrr.cbor" },
+]
+
+[tasks.plot-jrl]
+cmd = "python scripts/plot-jrl data/results/jrl/{{ d }}.jrl --is3d"
+args = [
+  { "arg" = "d", "default" = "input_MITb_g2o_3d" },
+]
+
 
 [dependencies]
 numpy = "*"

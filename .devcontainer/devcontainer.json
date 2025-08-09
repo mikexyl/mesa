@@ -52,7 +52,8 @@
         "GitHub.copilot",
         "redhat.vscode-yaml",
         "ms-python.debugpy",
-        "llvm-vs-code-extensions.vscode-clangd"
+        "llvm-vs-code-extensions.vscode-clangd",
+        "jjjermiah.pixi-vscode"
       ]
     }
   },

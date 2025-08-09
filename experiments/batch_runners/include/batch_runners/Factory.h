@@ -2,10 +2,10 @@
 
 #include <boost/shared_ptr.hpp>
 
-// #include "batch_runners/ASAPPRunner.h"
+#include "batch_runners/ASAPPRunner.h"
 #include "batch_runners/Centralized.h"
 #include "batch_runners/DDFSAM.h"
-// #include "batch_runners/DGSRunner.h"
+#include "batch_runners/DGSRunner.h"
 #include "batch_runners/Independent.h"
 #include "batch_runners/MBADMMRunner.h"
 #include "batch_runners/MESARunner.h"
@@ -55,20 +55,21 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
     return boost::make_shared<batch_runners::DDFSAM<POSE_TYPE>>(dataset, output_dir);
   }
   /*********************************************************************************************************************/
-  // else if (method_name == "asapp") {
-  //   typename batch_runners::ASAPPRunner<POSE_TYPE>::Params params;
-  //   params.max_number_dgs_rotation_iters = 50;
-  //   params.max_number_dgs_pose_iters = 50;
-  //   params.rgd_step_size = 1e-3;
-  //   params.number_rgd_iters = 100;
-  //   params.optimization_method = DPGO::ROptParameters::ROptMethod::RGD;
-  //   return boost::make_shared<batch_runners::ASAPPRunner<POSE_TYPE>>("asapp", dataset, output_dir, params);
-  // }
+  else if (method_name == "asapp") {
+    typename batch_runners::ASAPPRunner<POSE_TYPE>::Params params;
+    params.max_number_dgs_rotation_iters = 50;
+    params.max_number_dgs_pose_iters = 50;
+    params.rgd_step_size = 0.01;
+    params.number_rgd_iters = 100;
+    params.optimization_method = DPGO::ROptParameters::ROptMethod::RGD;
+    params.norm_convergence_threshold = std::numeric_limits<double>::min();
+    return boost::make_shared<batch_runners::ASAPPRunner<POSE_TYPE>>("asapp", dataset, output_dir, params);
+  }
   /*********************************************************************************************************************/
-  // else if (method_name == "dgs") {
-  //   // WARNING ONLY WORKS WITH POSE 3
-  //   return boost::make_shared<batch_runners::DGSRunner<POSE_TYPE>>(dataset, output_dir);
-  // }
+  else if (method_name == "dgs") {
+    // WARNING ONLY WORKS WITH POSE 3
+    return boost::make_shared<batch_runners::DGSRunner<POSE_TYPE>>(dataset, output_dir);
+  }
   /*********************************************************************************************************************/
   else if (method_name == "mbadmm") {
     return boost::make_shared<batch_runners::MBADMMRunner<POSE_TYPE>>("mbadmm", dataset, output_dir, true, false);
@@ -76,8 +77,8 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
   /*********************************************************************************************************************/
   else if (method_name == "geodesic-mesa") {
     MESAParams params;
-    params.beta_init = 1;
-    params.beta_multiplier_increase = 1.0;
+    params.beta_init = 2;
+    params.beta_multiplier_increase = 1.05;
     params.prior_shared_vars_on_indep_solve = true;
     params.shared_var_prior_sigmas = compute_prior_sigmas<POSE_TYPE>();
 
@@ -92,7 +93,7 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
   /*********************************************************************************************************************/
   else if (method_name == "split-mesa") {
     MESAParams params;
-    params.beta_init = 200;
+    params.beta_init = 2;
     params.beta_multiplier_increase = 1.05;
     params.prior_shared_vars_on_indep_solve = true;
     params.shared_var_prior_sigmas = compute_prior_sigmas<POSE_TYPE>();

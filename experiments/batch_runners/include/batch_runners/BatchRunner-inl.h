@@ -38,7 +38,7 @@ void BatchRunner<POSE_TYPE>::optimize() {
   // size_t save_rate = iterationsPerFullComms();
   // size_t max_iters = 500 * dataset_.robots().size() * save_rate;
   // 3000
-  size_t save_rate = 100;
+  size_t save_rate = 10;
   size_t max_iters = 3000;
   while (!converged) {
     std::cout << "Iteration: " << iter_count << "---------------------------------------" << std::endl;
@@ -67,7 +67,7 @@ void BatchRunner<POSE_TYPE>::optimize() {
     current_estimate = iter_results;
 
     // Check for convergence
-    converged = isConverged() || iter_count > max_iters;
+    converged = iter_count > max_iters;
     iter_count++;
   }
 
