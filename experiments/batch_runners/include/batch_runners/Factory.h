@@ -59,10 +59,10 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
     typename batch_runners::ASAPPRunner<POSE_TYPE>::Params params;
     params.max_number_dgs_rotation_iters = 50;
     params.max_number_dgs_pose_iters = 50;
-    params.rgd_step_size = 0.01;
+    params.rgd_step_size = 0.001;
     params.number_rgd_iters = 100;
     params.optimization_method = DPGO::ROptParameters::ROptMethod::RGD;
-    params.norm_convergence_threshold = std::numeric_limits<double>::min();
+    // params.norm_convergence_threshold = std::numeric_limits<double>::min();
     return boost::make_shared<batch_runners::ASAPPRunner<POSE_TYPE>>("asapp", dataset, output_dir, params);
   }
   /*********************************************************************************************************************/

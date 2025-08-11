@@ -38,13 +38,19 @@ void BatchRunner<POSE_TYPE>::optimize() {
   // size_t save_rate = iterationsPerFullComms();
   // size_t max_iters = 500 * dataset_.robots().size() * save_rate;
   // 3000
-  size_t save_rate = 10;
-  size_t max_iters = 3000;
+  size_t save_rate = 100000;
+  size_t max_iters = 1000 * dataset_.robots().size();
+
+  double total_iter_time_s = 0.0;
+  std::map<size_t, std::pair<double, size_t>> iter_total_comm_total_time;
   while (!converged) {
     std::cout << "Iteration: " << iter_count << "---------------------------------------" << std::endl;
 
     // Run the iteration step
+    auto start_time = std::chrono::steady_clock::now();
     BatchIterResults iter_results = iterate();
+    auto end_time = std::chrono::steady_clock::now();
+    total_iter_time_s += std::chrono::duration<double>(end_time - start_time).count();
 
     // Update the total_number of communications
     total_communications += iter_results.number_communications;
@@ -58,16 +64,19 @@ void BatchRunner<POSE_TYPE>::optimize() {
       // Compute the Metrics for this step
       metrics = jrl::metrics::computeMetricSummary<POSE_TYPE>(dataset_, iter_results.results);
       result_writer.writeMetricSummary(metrics, iteration_output_directory_ + "/" + prefix + "_metrics.jrm", true);
-
-      // If we are saving intermediate results, record the current cumulative number of communications
-      cumulative_communications.push_back(total_communications);
     }
+
+    // If we are saving intermediate results, record the current cumulative number of communications
+    cumulative_communications.push_back(total_communications);
+
+    iter_total_comm_total_time[iter_count] = std::make_pair(total_iter_time_s, total_communications);
 
     // Update the current estimate
     current_estimate = iter_results;
 
     // Check for convergence
     converged = iter_count > max_iters;
+    // converged = isConverged() || iter_count > max_iters;
     iter_count++;
   }
 
@@ -84,6 +93,14 @@ void BatchRunner<POSE_TYPE>::optimize() {
   std::ofstream comm_count_output_file(output_directory_ + "/communication_counts.txt");
   std::ostream_iterator<size_t> comm_output_iterator(comm_count_output_file, " ");
   std::copy(std::begin(cumulative_communications), std::end(cumulative_communications), comm_output_iterator);
+
+  // Write the iter_total_comm_total_time as a three-column txt file
+  std::ofstream iter_time_comm_file(output_directory_ + "/iter_time_comm.txt");
+  iter_time_comm_file << "# Iteration TotalTime(s) TotalCommunications\n";
+  for (const auto& entry : iter_total_comm_total_time) {
+    iter_time_comm_file << entry.first << " " << entry.second.first << " " << entry.second.second << "\n";
+  }
+  iter_time_comm_file.close();
 }
 
 }  // namespace batch_runners

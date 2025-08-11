@@ -46,3 +46,55 @@ pandas = "*"
 # OpenGL and graphics support
 mesa-libgl-cos6-x86_64 = "*"
 mesa-dri-drivers-cos6-x86_64 = "*"
+
+
+
+[tasks.install-fonts]
+cmd = [
+  "bash", "-c", """
+  echo "Installing system fonts..." &&
+  
+  # Create fonts directory if it doesn't exist
+  mkdir -p ~/.local/share/fonts &&
+  
+  # Download Times New Roman font files from a reliable source
+  echo "Downloading Times New Roman fonts..." &&
+  cd ~/.local/share/fonts &&
+  
+  # Download individual Times New Roman font files
+  if ! ls *times*.ttf >/dev/null 2>&1 && ! ls *Times*.ttf >/dev/null 2>&1; then
+    echo "Downloading Times New Roman font files..." &&
+    
+    # Download from freedesktop.org or other reliable sources
+    curl -L -o "times.ttf" "https://github.com/google/fonts/raw/main/ofl/crimsontext/CrimsonText-Regular.ttf" &&
+    curl -L -o "timesbd.ttf" "https://github.com/google/fonts/raw/main/ofl/crimsontext/CrimsonText-Bold.ttf" &&
+    curl -L -o "timesi.ttf" "https://github.com/google/fonts/raw/main/ofl/crimsontext/CrimsonText-Italic.ttf" &&
+    curl -L -o "timesbi.ttf" "https://github.com/google/fonts/raw/main/ofl/crimsontext/CrimsonText-BoldItalic.ttf" &&
+    
+    echo "Downloaded alternative serif fonts (Crimson Text as Times substitute)"
+  else
+    echo "Times-like fonts already present"
+  fi &&
+  
+  # Try to download Liberation fonts as a good Times alternative
+  echo "Downloading Liberation fonts..." &&
+  if ! ls *liberation*.ttf >/dev/null 2>&1 && ! ls *Liberation*.ttf >/dev/null 2>&1; then
+    curl -L -o "LiberationSerif-Regular.ttf" "https://github.com/liberationfonts/liberation-fonts/releases/download/2.1.5/liberation-fonts-ttf-2.1.5.tar.gz" -o liberation.tar.gz &&
+    tar -xzf liberation.tar.gz --strip-components=1 "liberation-fonts-ttf-2.1.5/*.ttf" 2>/dev/null || echo "Extraction failed, trying alternative..." &&
+    rm -f liberation.tar.gz
+  fi &&
+  
+  # Update font cache
+  echo "Updating system font cache..." &&
+  fc-cache -f -v &&
+  
+  # Rebuild matplotlib font cache  
+  echo "Rebuilding matplotlib font cache..." &&
+  python rebuild_font_cache.py &&
+  
+  echo "Font installation complete!" &&
+  echo "Available fonts:" &&
+  fc-list | grep -E -i "(times|liberation|serif|crimson)" || echo "Checking all available fonts..." &&
+  fc-list | head -10
+  """
+]
