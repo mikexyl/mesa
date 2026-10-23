@@ -1,3 +1,13 @@
 add_library(batch_runners INTERFACE)
 target_link_libraries(batch_runners INTERFACE gtsam jrl mesa distributed-mapper admm DPGO)
 target_include_directories(batch_runners INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+option(MESA_WITH_CBS "Build the native CBS experiment runner" OFF)
+if(MESA_WITH_CBS)
+  find_package(cbs REQUIRED)
+  add_library(cbs_runner STATIC CBSRunner.cpp)
+  target_link_libraries(cbs_runner PUBLIC cbs jrl gtsam)
+  target_include_directories(cbs_runner PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  target_link_libraries(batch_runners INTERFACE cbs_runner)
+  target_compile_definitions(batch_runners INTERFACE MESA_WITH_CBS=1)
+endif()
