@@ -3,6 +3,7 @@
 #include "batch_runners/BatchRunner.h"
 #include "batch_runners/CBSPose2Factor.h"
 #include <cbs/bpsam/bpsam.h>
+#include <cbs/bpsam/sharing_stage.h>
 #include <cbs/utils/graph_partition.h>
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
@@ -12,12 +13,20 @@
 #include <fstream>
 #include <set>
 #include <type_traits>
+#include <algorithm>
+#include <optional>
 
 namespace batch_runners {
 
 /** Adapts native CBS to MESA's batch experiment lifecycle, without ROS or IPC.
  * Local solver gauges are separate from the physical priors in the JRL graph.
  * A shared virtual world pose carries those priors between robot-local frames.
+ *
+ * "cbs" keeps the phased offline schedule (pose rounds, then anchor rounds).
+ * "cbs-persistent" follows CoLiBS's persistent async node (no PCM): every
+ * receiver draws its own stage each round, pose-stage replies are not
+ * forwarded, nobody is sent its own beliefs back, and pose keys a sender stops
+ * answering are retracted.
  */
 template<class Pose>
 class CBSRunner final : public BatchRunner<Pose> {
@@ -29,13 +38,16 @@ class CBSRunner final : public BatchRunner<Pose> {
     cbs::BPSAM::Ptr sam;
     std::map<gtsam::Key,gtsam::Key> keys;
     std::set<char> neighbors;
+    std::optional<cbs::RandomStageSelector> stages;
     size_t physical_factors=0;
     double input_error=0;
     bool has_world_prior=false;
   };
  public:
-  CBSRunner(jrl::Dataset dataset,std::string output)
-      :BatchRunner<Pose>("cbs",dataset,output) {
+  CBSRunner(jrl::Dataset dataset,std::string output,bool persistent=false)
+      :BatchRunner<Pose>(persistent?"cbs-persistent":"cbs",dataset,output),persistent_(persistent) {
+    // CoLiBS async node defaults (cbs_ros async_cbs_node.cpp).
+    if(persistent_) {config_.erase("pose_rounds");config_.update(Json{{"d_max",0.3},{"pose_probability",0.5},{"seed",0}});}
     if(const char* path=std::getenv("MESA_CBS_CONFIG")) {
       std::ifstream input(path); if(!input)throw std::runtime_error("Cannot read MESA_CBS_CONFIG");
       Json supplied;input>>supplied;
@@ -44,7 +56,10 @@ class CBSRunner final : public BatchRunner<Pose> {
         config_[it.key()]=it.value();
       }
     }
-    if(config_.at("pose_rounds").get<int>()<1 || config_.at("convergence_patience").get<int>()<1 ||
+    if(persistent_!=config_.contains("pose_probability"))
+      throw std::runtime_error("pose_probability/seed apply only to cbs-persistent; pose_rounds only to cbs");
+    if(!persistent_ && config_.at("pose_rounds").get<int>()<1)throw std::runtime_error("Invalid CBS pose_rounds");
+    if( config_.at("convergence_patience").get<int>()<1 ||
        !(config_.at("translation_epsilon").get<double>()>0) || !(config_.at("rotation_epsilon").get<double>()>0))
       throw std::runtime_error("Invalid CBS scheduling/convergence settings");
   }
@@ -125,6 +140,8 @@ class CBSRunner final : public BatchRunner<Pose> {
       params.sam_params_.optimizationParams=gtsam::ISAM2GaussNewtonParams();
       robot.sam=std::make_shared<cbs::BPSAM>(params);
       robot.sam->update(physical,local);
+      if(persistent_)robot.stages.emplace(config_.at("pose_probability").get<double>(),
+          config_.at("seed").get<uint32_t>(),static_cast<uint32_t>(id));
       Json mapping=Json::object();for(auto [original_key,key]:robot.keys)mapping[std::to_string(original_key)]=std::to_string(key);
       import[std::string(1,id)]={{"physical_factors",robot.physical_factors},{"gauge_factors",2},
           {"input_error",robot.input_error},{"lifted_error",lifted_error},{"key_mapping",mapping}};
@@ -140,32 +157,56 @@ class CBSRunner final : public BatchRunner<Pose> {
 
   BatchIterResults iterate() override {
     const auto start=Clock::now();++round_;
-    const bool pose_stage=round_<=config_.at("pose_rounds").get<size_t>();
+    // Stages are drawn before any exchange, so the schedule is seeded and
+    // independent of iteration order. In phased mode every robot shares one stage.
+    std::map<char,bool> pose_stage_of;
+    for(auto& [id,robot]:robots_)
+      pose_stage_of[id]=persistent_ ? robot.stages->next()==cbs::SharingStage::Pose
+                                    : round_<=config_.at("pose_rounds").get<size_t>();
+    const bool pose_stage=std::all_of(pose_stage_of.begin(),pose_stage_of.end(),[](const auto& s){return s.second;});
     std::map<char,cbs::BPSAM::Beliefs> inbox;
-    size_t packets=0,gaussians=0,skipped=0;
+    std::map<std::pair<char,char>,gtsam::KeySet> requested_by;  // (receiver, sender) -> pose keys
+    size_t packets=0,gaussians=0,skipped=0,retracted=0;
     for(auto& [id,robot]:robots_) {
-      robot.sam->setMarginalizationGraph(pose_stage ? cbs::BPSAM::MarginalizationType::LOCAL : cbs::BPSAM::MarginalizationType::GLOBAL);
       for(char receiver:robot.neighbors) {
+        const bool pose=pose_stage_of.at(receiver);
+        robot.sam->setMarginalizationGraph(pose ? cbs::BPSAM::MarginalizationType::LOCAL : cbs::BPSAM::MarginalizationType::GLOBAL);
         gtsam::KeySet requested;
-        if(pose_stage) {
+        if(pose) {
           for(auto key:robots_.at(receiver).sam->allKeys())
             if(cbs::isPoseKey(key) && key!=worldKey())requested.insert(key);
+          requested_by[{receiver,id}]=requested;
         } else {
           requested.insert(worldKey());
           for(const auto& [other,_]:robots_)requested.insert(cbs::toRobotKey(other));
         }
-        const auto beliefs=robot.sam->getBeliefs(requested,true);
-        if(!beliefs.empty())++packets;
+        // The persistent node forwards other robots' beliefs only in the anchor stage.
+        const auto beliefs=robot.sam->getBeliefs(requested,!persistent_ || !pose);
+        bool sent=false;
         for(const auto& [key,senders]:beliefs)for(const auto& [sender,belief]:senders) {
-          ++gaussians;
+          if(persistent_ && sender==receiver)continue;  // never echo a requester's own beliefs
+          ++gaussians;sent=true;
           inbox[receiver][key].emplace(sender,belief);
         }
+        if(sent)++packets;
       }
+      robot.sam->setMarginalizationGraph(cbs::BPSAM::MarginalizationType::FULL);
     }
     const double exchange=seconds(start);
     const auto update_start=Clock::now();
     for(auto& [id,robot]:robots_) {
       skipped+=robot.sam->addBeliefs(inbox[id]);
+      if(persistent_) for(char sender:robot.neighbors) {
+        // A requested pose key the sender no longer answers for is retracted.
+        const auto found=requested_by.find({id,sender});
+        if(found==requested_by.end())continue;
+        gtsam::KeySet gone;
+        for(auto key:found->second) {
+          const auto belief=inbox[id].find(key);
+          if(belief==inbox[id].end() || !belief->second.count(sender))gone.insert(key);
+        }
+        retracted+=robot.sam->removeBeliefs(sender,gone);
+      }
       robot.sam->update();
     }
     auto owned=globalOwned();double translation=0,rotation=0;size_t count=0;
@@ -176,12 +217,16 @@ class CBSRunner final : public BatchRunner<Pose> {
     }
     previous_=std::move(owned);
     translation/=std::max(size_t(1),count);rotation/=std::max(size_t(1),count);
-    const bool stable=!pose_stage && allWorldAvailable() &&
+    // Persistent mode has no anchor-only phase: convergence needs stable
+    // estimates once every robot has a world reference.
+    const bool stable=(persistent_ || !pose_stage) && allWorldAvailable() &&
         translation<config_.at("translation_epsilon").get<double>() && rotation<config_.at("rotation_epsilon").get<double>();
     patience_=stable ? patience_+1 : 0;
     converged_=patience_>=config_.at("convergence_patience").get<size_t>();
     last_translation_=translation;last_rotation_=rotation;
-    record(pose_stage?"pose":"anchor",packets,gaussians,skipped,seconds(update_start),exchange);
+    std::string phase=pose_stage?"pose":"anchor";
+    if(persistent_){phase="";for(const auto& [id,pose]:pose_stage_of)phase+=std::string(1,id)+(pose?"P":"A");}
+    record(phase,packets,gaussians,skipped,seconds(update_start),exchange,retracted);
     return BatchIterResults(results(),packets);
   }
   bool isConverged() override {return converged_;}
@@ -246,15 +291,16 @@ class CBSRunner final : public BatchRunner<Pose> {
       if(gtsam::Symbol(original).chr()==id)result[id][original]=toWorld(robot)*robot.sam->template calculateEstimate<gtsam::Pose3>(key);
     return result;
   }
-  void record(const std::string& phase,size_t packets,size_t gaussians,size_t skipped,double update_s,double exchange_s) {
+  void record(const std::string& phase,size_t packets,size_t gaussians,size_t skipped,double update_s,double exchange_s,size_t retracted=0) {
     Json row={{"round",round_},{"phase",phase},{"directed_belief_packets",packets},{"gaussians",gaussians},
-       {"skipped_beliefs",skipped},{"update_s",update_s},{"exchange_s",exchange_s},
+       {"skipped_beliefs",skipped},{"retracted_beliefs",retracted},{"mode",persistent_?"persistent":"phased"},{"update_s",update_s},{"exchange_s",exchange_s},
        {"all_world_references_available",allWorldAvailable()},{"converged",converged_},
        {"mean_translation_change",last_translation_},{"mean_rotation_change",last_rotation_},
        {"components",components_},{"config",config_},{"gtsam_version",GTSAM_VERSION_STRING}};
     std::ofstream(this->output_directory_+"/cbs-diagnostics.jsonl",std::ios::app)<<row.dump()<<'\n';
     std::ofstream(this->output_directory_+"/cbs-status.json")<<row.dump(2)<<'\n';
   }
+  bool persistent_=false;
   Json config_={{"pose_rounds",41},{"convergence_patience",3},{"translation_epsilon",0.01},
       {"rotation_epsilon",0.001},{"d_min",0.0},{"d_max",0.1},{"target_hellinger",0.1}};
   Json components_=Json::array();
