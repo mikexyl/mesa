@@ -15,6 +15,7 @@
 #include <type_traits>
 #include <algorithm>
 #include <optional>
+#include <gtsam/inference/LabeledSymbol.h>
 
 namespace batch_runners {
 
@@ -172,10 +173,12 @@ class CBSRunner final : public BatchRunner<Pose> {
         const bool pose=pose_stage_of.at(receiver);
         robot.sam->setMarginalizationGraph(pose ? cbs::BPSAM::MarginalizationType::LOCAL : cbs::BPSAM::MarginalizationType::GLOBAL);
         gtsam::KeySet requested;
+        size_t compact=0;
         if(pose) {
           for(auto key:robots_.at(receiver).sam->allKeys())
             if(cbs::isPoseKey(key) && key!=worldKey())requested.insert(key);
           requested_by[{receiver,id}]=requested;
+          compact=compactKeyBytes(requested);
         } else {
           requested.insert(worldKey());
           for(const auto& [other,_]:robots_)requested.insert(cbs::toRobotKey(other));
@@ -189,6 +192,11 @@ class CBSRunner final : public BatchRunner<Pose> {
           inbox[receiver][key].emplace(sender,belief);
         }
         if(sent)++packets;
+        // The receiver requests from this neighbour every round; the reply is
+        // sent even when empty, exactly as in the async node.
+        size_t returned=0;
+        for(const auto& [key,senders]:beliefs)for(const auto& [sender,_]:senders)if(!persistent_ || sender!=receiver)++returned;
+        request_bytes_+=requestBytes(compact);response_bytes_+=responseBytes(returned);++requests_;
       }
       robot.sam->setMarginalizationGraph(cbs::BPSAM::MarginalizationType::FULL);
     }
@@ -247,6 +255,34 @@ class CBSRunner final : public BatchRunner<Pose> {
       graph.emplace_shared<gtsam::BetweenFactor<gtsam::Pose3>>(first,second,measured,model);
     else graph.emplace_shared<CBSPose2Factor>(first,second,measured,model);
   }
+  // Serialized sizes of the CoLiBS cbs_ros messages (CDR with its 4-byte
+  // encapsulation header), as the async node records them with serializedSize.
+  static size_t varintBytes(uint64_t value) {size_t n=1;while(value>=0x80u){value>>=7u;++n;}return n;}
+  static size_t compactKeyBytes(const gtsam::KeySet& keys) {  // cbs_ros encodeCompactKeys
+    std::map<std::pair<uint8_t,uint8_t>,std::vector<uint64_t>> groups;
+    for(auto raw:keys) {const gtsam::LabeledSymbol key(raw);
+      groups[{static_cast<uint8_t>(key.chr()),static_cast<uint8_t>(key.label())}].push_back(key.index());}
+    if(groups.empty())return 0;
+    size_t bytes=1+varintBytes(groups.size());
+    for(auto& [_,indices]:groups) {
+      std::sort(indices.begin(),indices.end());
+      bytes+=2+varintBytes(indices.size());uint64_t previous=0;
+      for(size_t i=0;i<indices.size();++i){bytes+=varintBytes(i==0?indices[i]:indices[i]-previous);previous=indices[i];}
+    }
+    return bytes;
+  }
+  static size_t align(size_t offset,size_t to) {return (offset+to-1)/to*to;}
+  static size_t requestBytes(size_t compact) {  // Keys.srv request: char, uint8, uint8[]
+    return 4+align(2,4)+4+compact;
+  }
+  static size_t responseBytes(size_t n) {  // BeliefBatch: uint64[], uint8[], float32[6n], float32[21n]
+    size_t o=4+8*n;                 // keys: length at 0, elements aligned to 8
+    if(n)o=align(4,8)+8*n;
+    o=align(o,4)+4+n;               // sender_ids
+    o=align(o,4)+4+24*n;            // mu
+    o=align(o,4)+4+84*n;            // sigma_upper
+    return 4+o;
+  }
   static double seconds(Clock::time_point start) {return std::chrono::duration<double>(Clock::now()-start).count();}
   static void requireConnected(const gtsam::NonlinearFactorGraph& graph,const gtsam::Values& values,gtsam::Key first) {
     std::map<gtsam::Key,gtsam::KeySet> adjacency;
@@ -293,7 +329,9 @@ class CBSRunner final : public BatchRunner<Pose> {
   }
   void record(const std::string& phase,size_t packets,size_t gaussians,size_t skipped,double update_s,double exchange_s,size_t retracted=0) {
     Json row={{"round",round_},{"phase",phase},{"directed_belief_packets",packets},{"gaussians",gaussians},
-       {"skipped_beliefs",skipped},{"retracted_beliefs",retracted},{"mode",persistent_?"persistent":"phased"},{"update_s",update_s},{"exchange_s",exchange_s},
+       {"skipped_beliefs",skipped},{"retracted_beliefs",retracted},{"request_messages",requests_},
+       {"request_bytes",request_bytes_},{"response_bytes",response_bytes_},{"total_bytes",request_bytes_+response_bytes_},
+       {"byte_model","CoLiBS cbs_ros Keys.srv/BeliefBatch CDR serialized sizes, cumulative"},{"mode",persistent_?"persistent":"phased"},{"update_s",update_s},{"exchange_s",exchange_s},
        {"all_world_references_available",allWorldAvailable()},{"converged",converged_},
        {"mean_translation_change",last_translation_},{"mean_rotation_change",last_rotation_},
        {"components",components_},{"config",config_},{"gtsam_version",GTSAM_VERSION_STRING}};
@@ -301,6 +339,7 @@ class CBSRunner final : public BatchRunner<Pose> {
     std::ofstream(this->output_directory_+"/cbs-status.json")<<row.dump(2)<<'\n';
   }
   bool persistent_=false;
+  size_t request_bytes_=0,response_bytes_=0,requests_=0;
   Json config_={{"pose_rounds",41},{"convergence_patience",3},{"translation_epsilon",0.01},
       {"rotation_epsilon",0.001},{"d_min",0.0},{"d_max",0.1},{"target_hellinger",0.1}};
   Json components_=Json::array();
