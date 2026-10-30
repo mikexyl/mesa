@@ -21,10 +21,12 @@ struct BatchIterResults {
   jrl::Results results;
   /// @brief  The number of communications that occurred in this iteration
   size_t number_communications;
-  BatchIterResults(jrl::Results results, size_t number_communications)
-      : results(results), number_communications(number_communications) {}
+  /// @brief Serialized size of the data exchanged in this iteration (8-byte keys, float32 values)
+  size_t number_bytes = 0;
+  BatchIterResults(jrl::Results results, size_t number_communications, size_t number_bytes = 0)
+      : results(results), number_communications(number_communications), number_bytes(number_bytes) {}
   BatchIterResults(BatchIterResults& other)
-      : results(other.results), number_communications(other.number_communications) {}
+      : results(other.results), number_communications(other.number_communications), number_bytes(other.number_bytes) {}
 };
 
 /// @brief Interface that each method must provide to run the experiments

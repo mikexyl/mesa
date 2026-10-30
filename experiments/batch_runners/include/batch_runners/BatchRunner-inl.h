@@ -5,6 +5,7 @@
 #include <boost/format.hpp>
 #include <ctime>
 #include <iomanip>
+#include <cstdlib>
 #include <sstream>
 
 #include "batch_runners/BatchRunner.h"
@@ -23,8 +24,13 @@ void BatchRunner<POSE_TYPE>::optimize() {
   jrl::Writer result_writer;
 
   // Setup log for number of communications
-  std::vector<size_t> cumulative_communications;
+  std::vector<size_t> cumulative_communications, cumulative_bytes;
   size_t total_communications = current_estimate.number_communications;
+  size_t total_bytes = current_estimate.number_bytes;
+  // Unified stopping: with MESA_RUN_TO_CAP=1 every method runs to the same harness cap and a
+  // common rule is applied afterwards to the saved iterations.
+  const char* run_to_cap_env = std::getenv("MESA_RUN_TO_CAP");
+  const bool run_to_cap = run_to_cap_env && std::string(run_to_cap_env) == "1";
 
   // Save the Initial Results
   std::string prefix = (boost::format("%012d") % iter_count++).str();
@@ -33,6 +39,7 @@ void BatchRunner<POSE_TYPE>::optimize() {
   result_writer.writeMetricSummary(metrics, iteration_output_directory_ + "/" + prefix + "_metrics.jrm", true);
 
   cumulative_communications.push_back(total_communications);
+  cumulative_bytes.push_back(total_bytes);
 
   // Figure out the Max Iterations and Save Rate
   size_t save_rate = iterationsPerFullComms();
@@ -45,6 +52,7 @@ void BatchRunner<POSE_TYPE>::optimize() {
 
     // Update the total_number of communications
     total_communications += iter_results.number_communications;
+    total_bytes += iter_results.number_bytes;
 
     // Save the intermediary results if step is correct
     if (iter_count % save_rate == 0) {
@@ -58,13 +66,14 @@ void BatchRunner<POSE_TYPE>::optimize() {
 
       // If we are saving intermediate results, record the current cumulative number of communications
       cumulative_communications.push_back(total_communications);
+      cumulative_bytes.push_back(total_bytes);
     }
 
     // Update the current estimate
     current_estimate = iter_results;
 
     // Check for convergence
-    converged = isConverged() || iter_count > max_iters;
+    converged = (!run_to_cap && isConverged()) || iter_count > max_iters;
     iter_count++;
   }
 
@@ -81,6 +90,10 @@ void BatchRunner<POSE_TYPE>::optimize() {
   std::ofstream comm_count_output_file(output_directory_ + "/communication_counts.txt");
   std::ostream_iterator<size_t> comm_output_iterator(comm_count_output_file, " ");
   std::copy(std::begin(cumulative_communications), std::end(cumulative_communications), comm_output_iterator);
+  cumulative_bytes.push_back(total_bytes);
+  std::ofstream byte_output_file(output_directory_ + "/communication_bytes.txt");
+  std::ostream_iterator<size_t> byte_output_iterator(byte_output_file, " ");
+  std::copy(std::begin(cumulative_bytes), std::end(cumulative_bytes), byte_output_iterator);
 }
 
 }  // namespace batch_runners

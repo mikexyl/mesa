@@ -158,6 +158,7 @@ class CBSRunner final : public BatchRunner<Pose> {
 
   BatchIterResults iterate() override {
     const auto start=Clock::now();++round_;
+    const size_t bytes_before=request_bytes_+response_bytes_;
     // Stages are drawn before any exchange, so the schedule is seeded and
     // independent of iteration order. In phased mode every robot shares one stage.
     std::map<char,bool> pose_stage_of;
@@ -235,7 +236,7 @@ class CBSRunner final : public BatchRunner<Pose> {
     std::string phase=pose_stage?"pose":"anchor";
     if(persistent_){phase="";for(const auto& [id,pose]:pose_stage_of)phase+=std::string(1,id)+(pose?"P":"A");}
     record(phase,packets,gaussians,skipped,seconds(update_start),exchange,retracted);
-    return BatchIterResults(results(),packets);
+    return BatchIterResults(results(),packets,request_bytes_+response_bytes_-bytes_before);
   }
   bool isConverged() override {return converged_;}
 

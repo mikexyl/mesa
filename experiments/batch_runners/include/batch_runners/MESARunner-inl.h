@@ -47,7 +47,7 @@ BatchIterResults BatchMESARunner<POSE_TYPE, MESA_METHOD>::iterate() {
     result.robot_solutions[rid] = jrl::TypedValues(robot_results[rid], initialization.types);
   }
 
-  return BatchIterResults(result, 1);
+  return BatchIterResults(result, 1, solver_->lastIterationBytes());
 }
 
 /***************************************************************************/

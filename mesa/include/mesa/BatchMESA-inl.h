@@ -355,6 +355,8 @@ RobotValues BatchMESA<POSE_TYPE, Z_TYPE, BIASED_PRIOR_TYPE, INV_BIASED_PRIOR_TYP
     prev_estimates[rid] = robot_estimates_[rid];
   }
 
+  // Per shared variable and direction: key, pose, dual and marginal information.
+  last_iteration_bytes_ = 0;
   if (first_iterate_) {
     first_iterate_ = false;
     // Optimize each robot individually
@@ -372,6 +374,7 @@ RobotValues BatchMESA<POSE_TYPE, Z_TYPE, BIASED_PRIOR_TYPE, INV_BIASED_PRIOR_TYP
 
     // run a round of communication to initialize all of the shared estimates
     for (auto comm_edge : communication_network_) {
+      last_iteration_bytes_ += robot_shared_variables_[comm_edge.first][comm_edge.second].size() * (8 + 6 * 4 + 2 * (8 + (6 + 6 + 21) * 4));
       for (auto shared_key : robot_shared_variables_[comm_edge.first][comm_edge.second]) {
         char key_owner = gtsam::Symbol(shared_key).chr();
         if (key_owner == comm_edge.first) {
@@ -393,6 +396,7 @@ RobotValues BatchMESA<POSE_TYPE, Z_TYPE, BIASED_PRIOR_TYPE, INV_BIASED_PRIOR_TYP
     std::advance(edge_iter, n);
 
     // Run an update on these variables
+    last_iteration_bytes_ += robot_shared_variables_[edge_iter->first][edge_iter->second].size() * 2 * (8 + (6 + 6 + 21) * 4);
     preformCommunicationStep(*edge_iter);
   }
 

@@ -85,6 +85,7 @@ class BatchMESA {
   std::map<CommunicationEdge, std::map<char, gtsam::Values>> edge_robot_lie_dual_variables_;
 
   /// @brief The edges that exist in the current communication network as defined implicitly by the problem
+  size_t last_iteration_bytes_ = 0;
   std::set<CommunicationEdge> communication_network_;
   /// @brief The current value of beta, one for each neighbor
   std::map<CommunicationEdge, double> edge_beta_variables_;
@@ -157,6 +158,8 @@ class BatchMESA {
   /// @brief returns the number of edges in the communication network.
   /// In expectation this is the number of iterations we need to globally decrease the cost function
   size_t commNetworkSize() { return communication_network_.size(); }
+  /// @brief Serialized size of the data exchanged by the last iterate() (8-byte keys, float32 values)
+  size_t lastIterationBytes() const { return last_iteration_bytes_; }
 
   /// @brief returns the dimension of the dual variable
   virtual size_t getDualDim() const = 0;

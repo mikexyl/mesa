@@ -117,6 +117,7 @@ bool DGSRunner<POSE_TYPE>::iterateRotations() {
       size_t neighboringRobotId = robot_names_.find(symbol);
       if (neighboringRobotId != std::string::npos) {  // if the robot is actually communicating
         gtsam::Vector rotationEstimate = distributed_mappers_[neighboringRobotId]->linearizedRotationAt(key);
+        iteration_bytes_ += 8 + 9 * 4 + 1;  // key, linearized rotation, initialized flag
         distributed_mappers_[robot]->updateNeighborLinearizedRotations(
             key, rotationEstimate);  // this requires communication
 
@@ -182,6 +183,7 @@ bool DGSRunner<POSE_TYPE>::iteratePoses() {
       if (neighboringRobotId != std::string::npos) {  // if the robot is actually communicating
         // Update Neighbor Poses
         gtsam::Pose3 neighborPose = distributed_mappers_[neighboringRobotId]->currentEstimate().at<gtsam::Pose3>(key);
+        iteration_bytes_ += 8 + (6 + 6) * 4 + 1;  // key, pose, linearized pose, initialized flag
         distributed_mappers_[robot]->updateNeighbor(key, neighborPose);
 
         // Update Linearized Neighbor Pose
@@ -225,6 +227,7 @@ bool DGSRunner<POSE_TYPE>::iteratePoses() {
 /*********************************************************************************************************************/
 template <class POSE_TYPE>
 BatchIterResults DGSRunner<POSE_TYPE>::iterate() {
+  iteration_bytes_ = 0;
   if (!converged_rotations_) {
     bool at_max_rotations = max_rotation_iters ? iter_count_ >= *max_rotation_iters : false;
     converged_rotations_ = at_max_rotations || iterateRotations();
@@ -262,7 +265,7 @@ BatchIterResults DGSRunner<POSE_TYPE>::iterate() {
   }
 
   iter_count_++;
-  return BatchIterResults(result, number_communication_edges_);
+  return BatchIterResults(result, number_communication_edges_, iteration_bytes_);
 }
 /*********************************************************************************************************************/
 template <class POSE_TYPE>

@@ -19,6 +19,7 @@ class DGSRunner : public BatchRunner<POSE_TYPE> {
   std::string robot_names_;
   size_t iter_count_{0};
   size_t number_communication_edges_{0};
+  size_t iteration_bytes_ = 0;  // data exchanged in the current iteration
   /** Helpers **/
   bool iterateRotations();
   bool iteratePoses();
