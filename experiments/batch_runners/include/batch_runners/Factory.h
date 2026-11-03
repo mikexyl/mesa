@@ -46,9 +46,10 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
                                                                            std::string output_dir) {
   std::cout << method_name << std::endl;
   std::cout << std::endl;
-  if (method_name == "cbs" || method_name == "cbs-persistent") {
+  if (method_name == "cbs" || method_name == "cbs-persistent" || method_name == "cbs-legacy") {
 #ifdef MESA_WITH_CBS
-    return batch_runners::makeCBSRunner<POSE_TYPE>(dataset, output_dir, method_name == "cbs-persistent");
+    return batch_runners::makeCBSRunner<POSE_TYPE>(dataset, output_dir, method_name == "cbs-persistent",
+                                                  method_name == "cbs-legacy");
 #else
     throw std::runtime_error("CBS runner requires a build with MESA_WITH_CBS=ON");
 #endif
@@ -163,7 +164,7 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
 template <class POSE_TYPE>
 boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> linear_factory(std::string method_name, jrl::Dataset dataset,
                                                                         std::string output_dir) {
-  if (method_name == "cbs" || method_name == "cbs-persistent") {
+  if (method_name == "cbs" || method_name == "cbs-persistent" || method_name == "cbs-legacy") {
     throw std::runtime_error("CBS runner supports Pose2/Pose3 graphs, not linear Point2/Point3 graphs");
   }
   if (method_name == "centralized") {

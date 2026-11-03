@@ -28,6 +28,9 @@ namespace batch_runners {
  * receiver draws its own stage each round, pose-stage replies are not
  * forwarded, nobody is sent its own beliefs back, and pose keys a sender stops
  * answering are retracted.
+ * "cbs-legacy" is the phased schedule with the pre-0231c78 Hellinger control:
+ * each belief's target decays by contract_alpha per accepted update and
+ * restarts after a reset, using the old offline example's d_max 0.6, alpha 0.5.
  */
 template<class Pose>
 class CBSRunner final : public BatchRunner<Pose> {
@@ -45,8 +48,10 @@ class CBSRunner final : public BatchRunner<Pose> {
     bool has_world_prior=false;
   };
  public:
-  CBSRunner(jrl::Dataset dataset,std::string output,bool persistent=false)
-      :BatchRunner<Pose>(persistent?"cbs-persistent":"cbs",dataset,output),persistent_(persistent) {
+  CBSRunner(jrl::Dataset dataset,std::string output,bool persistent=false,bool legacy=false)
+      :BatchRunner<Pose>(persistent?"cbs-persistent":legacy?"cbs-legacy":"cbs",dataset,output),persistent_(persistent),legacy_(legacy) {
+    if(persistent_ && legacy_)throw std::runtime_error("cbs-legacy is phased, not persistent");
+    if(legacy_)config_.update(Json{{"d_max",0.6},{"contract_alpha",0.5}});
     // CoLiBS async node defaults (cbs_ros async_cbs_node.cpp).
     if(persistent_) {config_.erase("pose_rounds");config_.update(Json{{"d_max",0.3},{"pose_probability",0.5},{"seed",0}});}
     if(const char* path=std::getenv("MESA_CBS_CONFIG")) {
@@ -134,6 +139,7 @@ class CBSRunner final : public BatchRunner<Pose> {
       params.gbp_update_params.d_min=config_.at("d_min");
       params.gbp_update_params.d_max=config_.at("d_max");
       params.gbp_update_params.target_hellinger=config_.at("target_hellinger");
+      params.gbp_update_params.contract_alpha=config_.at("contract_alpha");
       params.sam_params_.relinearizeSkip=1;
       params.sam_params_.cacheLinearizedFactors=false;
       params.sam_params_.findUnusedFactorSlots=true;
@@ -332,17 +338,17 @@ class CBSRunner final : public BatchRunner<Pose> {
     Json row={{"round",round_},{"phase",phase},{"directed_belief_packets",packets},{"gaussians",gaussians},
        {"skipped_beliefs",skipped},{"retracted_beliefs",retracted},{"request_messages",requests_},
        {"request_bytes",request_bytes_},{"response_bytes",response_bytes_},{"total_bytes",request_bytes_+response_bytes_},
-       {"byte_model","CoLiBS cbs_ros Keys.srv/BeliefBatch CDR serialized sizes, cumulative"},{"mode",persistent_?"persistent":"phased"},{"update_s",update_s},{"exchange_s",exchange_s},
+       {"byte_model","CoLiBS cbs_ros Keys.srv/BeliefBatch CDR serialized sizes, cumulative"},{"mode",persistent_?"persistent":legacy_?"phased-legacy-decay":"phased"},{"update_s",update_s},{"exchange_s",exchange_s},
        {"all_world_references_available",allWorldAvailable()},{"converged",converged_},
        {"mean_translation_change",last_translation_},{"mean_rotation_change",last_rotation_},
        {"components",components_},{"config",config_},{"gtsam_version",GTSAM_VERSION_STRING}};
     std::ofstream(this->output_directory_+"/cbs-diagnostics.jsonl",std::ios::app)<<row.dump()<<'\n';
     std::ofstream(this->output_directory_+"/cbs-status.json")<<row.dump(2)<<'\n';
   }
-  bool persistent_=false;
+  bool persistent_=false,legacy_=false;
   size_t request_bytes_=0,response_bytes_=0,requests_=0;
   Json config_={{"pose_rounds",41},{"convergence_patience",3},{"translation_epsilon",0.01},
-      {"rotation_epsilon",0.001},{"d_min",0.0},{"d_max",0.1},{"target_hellinger",0.1}};
+      {"rotation_epsilon",0.001},{"d_min",0.0},{"d_max",0.1},{"target_hellinger",0.1},{"contract_alpha",0.0}};
   Json components_=Json::array();
   std::map<char,Robot> robots_;
   std::map<gtsam::Key,gtsam::Key> rekey_;
