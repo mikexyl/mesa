@@ -222,18 +222,21 @@ BatchIterResults ASAPPRunner<POSE_TYPE>::init() {
 }
 
 /*********************************************************************************************************************/
+// Bytes follow the convention of the other runners (8-byte keys, float32 values): each shared
+// pose is a key plus its lifted r x (d+1) matrix, and the sender's status message is 24 bytes.
 template <class POSE_TYPE>
-void ASAPPRunner<POSE_TYPE>::runDPGOCommunication(unsigned selected_robot_idx, unsigned other_robot_idx) {
+size_t ASAPPRunner<POSE_TYPE>::runDPGOCommunication(unsigned selected_robot_idx, unsigned other_robot_idx) {
   // Selected Robot retrieves poses from its the neighbor
   DPGO::PoseDict shared_poses;
-  if (!dpgo_agents_[other_robot_idx]->getSharedPoseDict(shared_poses)) return;
+  if (!dpgo_agents_[other_robot_idx]->getSharedPoseDict(shared_poses)) return 0;
   dpgo_agents_[selected_robot_idx]->setNeighborStatus(dpgo_agents_[other_robot_idx]->getStatus());
   dpgo_agents_[selected_robot_idx]->updateNeighborPoses(dpgo_agents_[other_robot_idx]->getID(), shared_poses);
+  return shared_poses.size() * (8 + params_.relaxation_rank * (pose_dim_ + 1) * 4) + 24;
 }
 
 /*********************************************************************************************************************/
 template <class POSE_TYPE>
-BatchIterResults ASAPPRunner<POSE_TYPE>::getCurrentDPGOResults(size_t number_iter_comms) {
+BatchIterResults ASAPPRunner<POSE_TYPE>::getCurrentDPGOResults(size_t number_iter_comms, size_t number_iter_bytes) {
   std::vector<char> robots = this->dataset_.robots();
   std::map<char, gtsam::Values> robot_values;
 
@@ -272,20 +275,22 @@ BatchIterResults ASAPPRunner<POSE_TYPE>::getCurrentDPGOResults(size_t number_ite
   for (char& rid : robots) {
     robot_solutions[rid] = jrl::TypedValues(robot_values[rid], this->dataset_.initializationWithTypes(rid).types);
   }
-  return BatchIterResults(jrl::Results(this->dataset_.name(), this->name_, robots, robot_solutions), number_iter_comms);
+  return BatchIterResults(jrl::Results(this->dataset_.name(), this->name_, robots, robot_solutions), number_iter_comms,
+                          number_iter_bytes);
 }
 
 /*********************************************************************************************************************/
 template <class POSE_TYPE>
 BatchIterResults ASAPPRunner<POSE_TYPE>::iterateDPGO(size_t selected_robot_idx) {
   // Selected robot requests public poses from others
-  size_t number_iteration_comms = 0;
+  size_t number_iteration_comms = 0, number_iteration_bytes = pending_bytes_;
+  pending_bytes_ = 0;
   std::vector<unsigned> neighbors = dpgo_agents_[selected_robot_idx]->getNeighbors();
   for (unsigned neighbor_idx : neighbors) {
     // Sample to see if communication occurs
     if (bernoulli_communication_distribution_(rng_)) {
       number_iteration_comms++;
-      runDPGOCommunication(selected_robot_idx, neighbor_idx);
+      number_iteration_bytes += runDPGOCommunication(selected_robot_idx, neighbor_idx);
     }
   }
 
@@ -301,7 +306,7 @@ BatchIterResults ASAPPRunner<POSE_TYPE>::iterateDPGO(size_t selected_robot_idx) 
   }
 
   // Compose the current DPGO results from each agent and return
-  return getCurrentDPGOResults(number_iteration_comms);
+  return getCurrentDPGOResults(number_iteration_comms, number_iteration_bytes);
 }
 
 /*********************************************************************************************************************/
@@ -357,7 +362,7 @@ BatchIterResults ASAPPRunner<POSE_TYPE>::iterate() {
     // Initial round of communication so robots have access to required data
     for (size_t i = 0; i < robots.size(); i++) {
       for (size_t j = 0; j < robots.size(); j++) {
-        if (i != j) runDPGOCommunication(i, j);
+        if (i != j) pending_bytes_ += runDPGOCommunication(i, j);  // charged to the first DPGO iteration
       }
     }
 

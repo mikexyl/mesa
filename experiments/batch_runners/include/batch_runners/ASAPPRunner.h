@@ -109,9 +109,10 @@ class ASAPPRunner : public BatchRunner<POSE_TYPE> {
   /// @brief Preforms one iteration of the ASAPP algorithm
   BatchIterResults iterateDPGO(size_t selected_robot);
   /// @brief Simulates a communication between two DPGO agents
-  void runDPGOCommunication(unsigned selected_robot_idx, unsigned other_robot_idx);
+  size_t runDPGOCommunication(unsigned selected_robot_idx, unsigned other_robot_idx);
   /// @brief Convert current estimate from the DPGO agents into jrl format
-  BatchIterResults getCurrentDPGOResults(size_t number_iter_comms);
+  BatchIterResults getCurrentDPGOResults(size_t number_iter_comms, size_t number_iter_bytes);
+  size_t pending_bytes_ = 0;  // initial all-pairs exchange, charged to the first DPGO iteration
 
   /// @brief Updates the history of norms and if converged sets flag converged_
   /// @param norm - the norm of variable changes for the selected robot

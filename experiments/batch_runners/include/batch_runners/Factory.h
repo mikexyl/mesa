@@ -13,6 +13,9 @@
 #ifdef MESA_WITH_CBS
 #include "batch_runners/CBSFactory.h"
 #endif
+#ifdef MESA_WITH_AMM
+#include "batch_runners/AMMFactory.h"
+#endif
 
 namespace batch_runners {
 
@@ -52,6 +55,13 @@ boost::shared_ptr<batch_runners::BatchRunner<POSE_TYPE>> nonlinear_factory(std::
                                                   method_name == "cbs-legacy");
 #else
     throw std::runtime_error("CBS runner requires a build with MESA_WITH_CBS=ON");
+#endif
+  }
+  if (method_name == "amm-pgo" || method_name == "amm-pgo-dinit") {
+#ifdef MESA_WITH_AMM
+    return batch_runners::makeAMMRunner<POSE_TYPE>(dataset, output_dir, method_name == "amm-pgo-dinit");
+#else
+    throw std::runtime_error("AMM-PGO runner requires a build with MESA_WITH_AMM=ON");
 #endif
   }
   if (method_name == "centralized") {
